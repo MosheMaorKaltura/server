@@ -106,59 +106,31 @@ class KafkaProvider extends QueueProvider
 		$this->producer->purge(RD_KAFKA_PURGE_F_QUEUE);
 	}
 	
-	public function sendWithPartitionKey($queueName, $partitionKey, $kafkaPayload)
+	public function produce($topic, $partitionKey, $kafkaPayload)
 	{
-		$partitionNum = $this->getTopic($queueName);
-		if ($partitionNum == 0) {
-			KalturaLog::err("kafka topic [$queueName] not found");
-		}
-		$partitionId = $this->getPartitionId($partitionKey, $partitionNum);
-		
-		for ($retry = 1; ; $retry++) {
-			try {
-				$this->create($queueName);
+		for ($retry = 1; ; $retry++)
+		{
+			try
+			{
 				$this->topic->produce($partitionId, 0, json_encode($kafkaPayload));
 				$this->producer->poll(0);
 				$result = $this->producer->flush(10000);
 				break;
-			} catch (Exception $e) {
-				if ($retry == self::MAX_RETRIES) {
+			}
+			catch (Exception $e)
+			{
+				if ($retry == self::MAX_RETRIES)
+				{
 					throw $e;
 				}
 			}
 		}
+		
 		if (!RD_KAFKA_RESP_ERR_NO_ERROR === $result) {
 			KalturaLog::err("producing kafka msg failed");
 		}
-		$this->producer->purge(RD_KAFKA_PURGE_F_QUEUE);
 	}
 	
-	public function sendWithPartitionKeyAvro($queueName, $partitionKey, $message)
-	{
-		$partitionNum = $this->getTopic($queueName);
-		if ($partitionNum == 0) {
-			KalturaLog::err("kafka topic [$queueName] not found");
-		}
-		$partitionId = $this->getPartitionId($partitionKey, $partitionNum);
-		
-		for ($retry = 1; ; $retry++) {
-			try {
-				$this->create($queueName);
-				$this->topic->produce($partitionId, 0, $message);
-				$this->producer->poll(0);
-				$result = $this->producer->flush(10000);
-				break;
-			} catch (Exception $e) {
-				if ($retry == self::MAX_RETRIES) {
-					throw $e;
-				}
-			}
-		}
-		if (!RD_KAFKA_RESP_ERR_NO_ERROR === $result) {
-			KalturaLog::err("producing kafka msg failed");
-		}
-		$this->producer->purge(RD_KAFKA_PURGE_F_QUEUE);
-	}
 	
 	public function getPartitionId($partitionKey, $partitionNum)
 	{

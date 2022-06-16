@@ -66,65 +66,88 @@ class KafkaNotificationTemplate extends EventNotificationTemplate
 	public function dispatch(kScope $scope)
 	{
 		KalturaLog::debug("Dispatching event notification with name [{$this->getName()}] systemName [{$this->getSystemName()}]");
-		if (!$scope || !($scope instanceof kEventScope)) {
+		if (!$scope || !($scope instanceof kEventScope))
+		{
 			KalturaLog::err('Failed to dispatch due to incorrect scope [' . $scope . ']');
 			return;
 		}
 		
+		$object = $scope->getEvent()->getObject();
+		if(!$object)
+		{
+			KalturaLog::debug("Object not found breaking event handling flow");
+			return;
+		}
+		
+		$topicName = $this->getTopicName();
+		$partitionKey = $this->getPartitionKey();
+		$messageFormat = $this->getMessageFormat();
+		
+		$getter = "get" . ucfirst($partitionKey);
+		if(!is_callable($object, $getter))
+		{
+			KalturaLog::debug("Partition key getter not found on object");
+			return;
+		}
+		
+		$oldValues = array();
+		$partitionKeyValue = $object->$getter();
+		if($scope->getEvent() instanceof kObjectChangedEvent)
+		{
+			$oldValues = $scope->getEvent()->getModifiedColumns();
+		}
+		
 		$uniqueId = (string)new UniqueId();
 		$eventTime = date('Y-m-d H:i:s');
-		$eventType = $_REQUEST[action];
-		$objectType = $_REQUEST[service];
-		$objectArray = $scope->getEvent();
-		$object = $objectArray->getObject();
-		$objectArray = $object->toArray();
-		$oldValues = $this->oldColumnsValues;
+		$eventType = get_class($scope->getEvent());
+		$objectType = get_class($object);
+		$oldValues = $oldValues;
 		
 		$msg = json_encode(array(
 			"uniqueId" => $uniqueId,
 			"eventTime" => $eventTime,
 			"eventType" => $eventType,
 			"objectType" => $objectType,
-			"object" => $objectArray,
+			"object" => $object,
 			"oldValues" => $oldValues
 		));
 		
-		try {
-			$topicName = $this->getTopicName();
+		try
+		{
 			$subject = $topicName . '-value';
-			$messageFormat = $this->getMessageFormat();
-			
-			$partitionKey = $this->getPartitionKey();
 			$queueProvider = QueueProvider::getInstance(KafkaPlugin::getKafakaQueueProviderTypeCoreValue('Kafka'));
 			
-			if (in_array($partitionKey, (array)$object)) {
-				if ($messageFormat == '2') {
-					$schemaRegistry = new BlockingRegistry(
-						new PromisingRegistry(
-							new Client(['base_uri' => '192.168.56.1:8081'])
-						)
-					);
+			if($messageFormat == KafkaNotificationFormat::AVRO)
+			{
+				$promisingRegistry = new PromisingRegistry(new Client(['base_uri' => '192.168.56.1:8081']));
+				$schemaRegistry = new BlockingRegistry($promisingRegistry);
 					
-					$schemaId = $schemaRegistry->schemaId("schemaName");
-					$schema = $schemaRegistry->schemaForId($schemaId);
-					
-					$io = new \AvroStringIO();
-					$io->write(pack('C', 0));
-					$io->write(pack('N', $schemaId));
-					$encoder = new \AvroIOBinaryEncoder($io);
-					$writer = new \AvroIODatumWriter($schema);
-					$writer->write($msg, $encoder);
-					$kafkaPayload = $io->string();
-					
-					$queueProvider->sendWithPartitionKeyAvro($topicName, $partitionKey, $kafkaPayload);
-				} else {
-					$queueProvider->sendWithPartitionKey($topicName, $partitionKey, $msg);
-				}
-			} else {
-				KalturaLog::err("partition key [$partitionKey] doen't exists in topic [$topicName]");
+				$schemaId = $schemaRegistry->schemaId("schemaName");
+				$schema = $schemaRegistry->schemaForId($schemaId);
+				
+				$io = new \AvroStringIO();
+				$io->write(pack('C', 0));
+				$io->write(pack('N', $schemaId));
+				$encoder = new \AvroIOBinaryEncoder($io);
+				$writer = new \AvroIODatumWriter($schema);
+				$writer->write($msg, $encoder);
+				$kafkaPayload = $io->string();
+				
+			}
+			elseif($messageFormat == KafkaNotificationFormat::JSON)
+			{
+				$kafkaPayload = json_encode($msg);
+				
+			}
+			else
+			{
+				KalturaLog::debug("Unknown notification message format [$messageFormat]");
 			}
 			
-		} catch (PhpAmqpLib\Exception\AMQPRuntimeException $e) {
+			$queueProvider->send($topicName, $partitionKeyValue, $kafkaPayload);
+		}
+		catch (Exception $e)
+		{
 			KalturaLog::debug("Failed to send message with error [" . $e->getMessage() . "]");
 			throw $e;
 		}

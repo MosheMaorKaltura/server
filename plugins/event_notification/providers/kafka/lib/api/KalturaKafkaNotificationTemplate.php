@@ -46,7 +46,6 @@ class KalturaKafkaNotificationTemplate extends KalturaEventNotificationTemplate
 	 */
 	public function validateForUpdate($sourceObject, $propertiesToSkip = array())
 	{
-		$propertiesToSkip[] = 'type';
 		return parent::validateForUpdate($sourceObject, $propertiesToSkip);
 	}
 	

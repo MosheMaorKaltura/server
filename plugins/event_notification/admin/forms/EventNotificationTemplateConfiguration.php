@@ -270,11 +270,6 @@ abstract class Form_EventNotificationTemplateConfiguration extends Infra_Form
 			'label'			=> 'Event type:',
 		));
 		
-		$eventType = new Kaltura_Form_Element_EnumSelect('message_format', array(
-			'enum' => 'Kaltura_Client_EventNotification_Enum_KafkaEventNotificationMessageFormat',
-			'label'			=> 'Message format:',
-		));
-		
 		$eventObjectType = new Kaltura_Form_Element_EnumSelect('event_object_type', array(
 			'enum' => 'Kaltura_Client_EventNotification_Enum_EventNotificationEventObjectType',
 			'disabled'		=> true,

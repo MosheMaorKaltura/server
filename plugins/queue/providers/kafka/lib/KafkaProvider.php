@@ -75,9 +75,9 @@ class KafkaProvider extends QueueProvider
 	 * (non-PHPdoc)
 	 * @see QueueProvider::create()
 	 */
-	public function create($queueName)
+	public function create($topicName)
 	{
-		$topic = $this->producer->newTopic($queueName);
+		$topic = $this->producer->newTopic($topicName);
 		$this->topic = $topic;
 	}
 	
@@ -85,12 +85,13 @@ class KafkaProvider extends QueueProvider
 	 * (non-PHPdoc)
 	 * @see QueueProvider::send()
 	 */
-	public function send($queueName, $message)
+	public function send($topicName, $message, $partitionKey)
 	{
+		//ToDo Check if topic exists
+		
 		for ($retry = 1; ; $retry++) {
 			try {
-				$this->create($queueName);
-				$this->topic->produce(RD_KAFKA_PARTITION_UA, 0, json_encode($message));
+				$this->topic->produce($partitionKey, 0, $message);
 				$this->producer->poll(0);
 				$result = $this->producer->flush(10000);
 				break;
@@ -106,36 +107,6 @@ class KafkaProvider extends QueueProvider
 		$this->producer->purge(RD_KAFKA_PURGE_F_QUEUE);
 	}
 	
-	public function produce($topic, $partitionKey, $kafkaPayload)
-	{
-		for ($retry = 1; ; $retry++)
-		{
-			try
-			{
-				$this->topic->produce($partitionId, 0, json_encode($kafkaPayload));
-				$this->producer->poll(0);
-				$result = $this->producer->flush(10000);
-				break;
-			}
-			catch (Exception $e)
-			{
-				if ($retry == self::MAX_RETRIES)
-				{
-					throw $e;
-				}
-			}
-		}
-		
-		if (!RD_KAFKA_RESP_ERR_NO_ERROR === $result) {
-			KalturaLog::err("producing kafka msg failed");
-		}
-	}
-	
-	
-	public function getPartitionId($partitionKey, $partitionNum)
-	{
-		return crc32($partitionKey) % $partitionNum;
-	}
 	
 	public function getTopic($queueName)
 	{

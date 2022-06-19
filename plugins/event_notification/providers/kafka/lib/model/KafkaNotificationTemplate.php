@@ -14,6 +14,7 @@ class KafkaNotificationTemplate extends EventNotificationTemplate
 	const CUSTOM_DATA_TOPIC_NAME = 'topicName';
 	const CUSTOM_DATA_PARTITION_KEY = 'partitionKey';
 	const CUSTOM_DATA_MESSAGE_FORMAT = 'messageFormat';
+	const CUSTOM_DATA_API_OBJECT_TYPE = 'apiObjectType';
 	
 	public function __construct()
 	{
@@ -62,6 +63,16 @@ class KafkaNotificationTemplate extends EventNotificationTemplate
 		return $this->getFromCustomData(self::CUSTOM_DATA_MESSAGE_FORMAT);
 	}
 	
+	public function setApiObjectType($value)
+	{
+		return $this->putInCustomData(self::CUSTOM_DATA_API_OBJECT_TYPE, $value);
+	}
+	
+	public function getApiObjectType()
+	{
+		return $this->getFromCustomData(self::CUSTOM_DATA_API_OBJECT_TYPE);
+	}
+	
 	
 	public function dispatch(kScope $scope)
 	{
@@ -84,7 +95,7 @@ class KafkaNotificationTemplate extends EventNotificationTemplate
 		$messageFormat = $this->getMessageFormat();
 		
 		$getter = "get" . ucfirst($partitionKey);
-		if(!is_callable($object, $getter))
+		if(!is_callable(array($object, $getter)))
 		{
 			KalturaLog::debug("Partition key getter not found on object");
 			return;
@@ -103,14 +114,18 @@ class KafkaNotificationTemplate extends EventNotificationTemplate
 		$objectType = get_class($object);
 		$oldValues = $oldValues;
 		
-		$msg = json_encode(array(
+		$apiObjectType = $this->getApiObjectType();
+		$apiObject = call_user_func(kCurrentContext::$serializeCallback, $object, $apiObjectType, 1);
+		
+		$msg = array(
 			"uniqueId" => $uniqueId,
 			"eventTime" => $eventTime,
 			"eventType" => $eventType,
 			"objectType" => $objectType,
-			"object" => $object,
+			"virtualEventId" => kCurrentContext::$virtual_event_id,
+			"object" => $apiObject,
 			"oldValues" => $oldValues
-		));
+		);
 		
 		try
 		{
@@ -137,7 +152,7 @@ class KafkaNotificationTemplate extends EventNotificationTemplate
 			elseif($messageFormat == KafkaNotificationFormat::JSON)
 			{
 				$kafkaPayload = json_encode($msg);
-				
+				KalturaLog::debug("Payload is " . print_r($kafkaPayload, true));
 			}
 			else
 			{

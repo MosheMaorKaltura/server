@@ -16,6 +16,7 @@ class KalturaKafkaNotificationTemplate extends KalturaEventNotificationTemplate
 	/**
 	 * Define the content dynamic parameters
 	 * @var string
+	 * @requiresPermission update
 	 */
 	public $partitionKey;
 	
@@ -25,8 +26,15 @@ class KalturaKafkaNotificationTemplate extends KalturaEventNotificationTemplate
 	 */
 	public $messageFormat;
 	
+	/**
+	 * Kaltura API object type
+	 * @var string
+	 * @requiresPermission update
+	 */
+	public $apiObjectType;
 	
-	private static $map_between_objects = array('topicName', 'partitionKey', 'messageFormat');
+	
+	private static $map_between_objects = array('topicName', 'partitionKey', 'messageFormat', 'apiObjectType');
 	
 	public function __construct()
 	{
@@ -46,6 +54,7 @@ class KalturaKafkaNotificationTemplate extends KalturaEventNotificationTemplate
 	 */
 	public function validateForUpdate($sourceObject, $propertiesToSkip = array())
 	{
+		$propertiesToSkip[] = 'type';
 		return parent::validateForUpdate($sourceObject, $propertiesToSkip);
 	}
 	

@@ -90,6 +90,8 @@ class kSessionBase
 	const FIELD_MASTER_PARTNER_ID =   '_m';
 	const FIELD_ADDITIONAL_DATA =     '_d';
 
+	const FIVE_MINUTES_IN_SECONDS = 300;
+	
 	protected static $fieldMapping = array(
 		self::FIELD_EXPIRY => 'valid_until',
 		self::FIELD_TYPE => 'type',
@@ -466,6 +468,12 @@ class kSessionBase
 	{
 		$rand = null;
 		$expiry += time();
+		
+		if(strpos($privileges, kSessionBase::PRIVILEGE_DOWNLOAD_ASSET) !== false)
+		{
+			$expiry = ceil($expiry/self::FIVE_MINUTES_IN_SECONDS) * self::FIVE_MINUTES_IN_SECONDS;
+			$rand = $expiry;
+		}
 		
 		if ($ksVersion == 2)
 			return self::generateKsV2($adminSecretForSigning, $userId, $type, $partnerId, $expiry, $privileges, $masterPartnerId, $additionalData, $rand);
